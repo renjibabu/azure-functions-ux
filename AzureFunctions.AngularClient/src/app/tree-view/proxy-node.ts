@@ -1,41 +1,35 @@
+import { Observable } from 'rxjs/Observable';
+import 'rxjs/add/observable/of';
+
 import { AppNode } from './app-node';
 import { FunctionDescriptor } from './../shared/resourceDescriptors';
-import { TreeNode, Removable, CanBlockNavChange, Disposable, CustomSelection } from './tree-node';
-import { ProxiesNode } from './proxies-node';
+import { TreeNode, CanBlockNavChange, Disposable, CustomSelection } from './tree-node';
 import { SideNavComponent } from '../side-nav/side-nav.component';
-import { Subject, Observable } from 'rxjs/Rx';
 import { DashboardType } from './models/dashboard-type';
-import { Site } from '../shared/models/arm/site';
-import { ArmObj } from '../shared/models/arm/arm-obj';
-import {FunctionContainer} from '../shared/models/function-container';
-import {BroadcastEvent} from '../shared/models/broadcast-event';
-import {PortalResources} from '../shared/models/portal-resources';
-//import {FunctionInfo} from '../shared/models/function-info';
-import {ApiProxy} from '../shared/models/api-proxy';
+import { PortalResources } from '../shared/models/portal-resources';
+import { ApiProxy } from '../shared/models/api-proxy';
 
-export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable, CustomSelection{
-    public title = "Proxy";
+export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable, CustomSelection {
+    public title = 'Proxy';
     public dashboardType = DashboardType.proxy;
     public showExpandIcon = false;
 
     constructor(
-        sideNav : SideNavComponent,
-        private _functionsNode: ProxiesNode,
-        //public functionInfo: FunctionInfo,
+        sideNav: SideNavComponent,
         public proxy: ApiProxy,
-        parentNode : TreeNode){
+        parentNode: TreeNode) {
 
         super(sideNav,
-            proxy.functionApp.site.id + "/proxies/" + proxy.name,
+            proxy.functionApp.site.id + '/proxies/' + proxy.name,
             parentNode);
 
         this.title = proxy.name;
         this.iconClass = 'tree-node-svg-icon';
-        this.iconUrl = "images/api-proxy.svg";
+        this.iconUrl = 'images/api-proxy.svg';
     }
 
-    public handleSelection() : Observable<any>{
-        if(!this.disabled){
+    public handleSelection(): Observable<any> {
+        if (!this.disabled) {
             return (<AppNode>this.parent.parent).initialize();
         }
 
@@ -52,20 +46,20 @@ export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable
     //    return Observable.of(null);
     //}
 
-    public getViewData() : any{
+    public getViewData(): any {
         return this.proxy;
     }
 
-    public shouldBlockNavChange() : boolean{
+    public shouldBlockNavChange(): boolean {
         return ProxyNode.blockNavChangeHelper(this);
     }
 
-    public dispose(newSelectedNode? : TreeNode){
+    public dispose(newSelectedNode?: TreeNode) {
         this.sideNav.broadcastService.clearAllDirtyStates();
         this.parent.dispose(newSelectedNode);
     }
 
-    public static blockNavChangeHelper(currentNode : TreeNode){
+    public static blockNavChangeHelper(currentNode: TreeNode) {
         var canSwitchFunction = true;
         if (currentNode.sideNav.broadcastService.getDirtyState('function')
             || currentNode.sideNav.broadcastService.getDirtyState('function_integrate')
@@ -75,7 +69,7 @@ export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable
 
             canSwitchFunction = confirm(currentNode.sideNav.translateService.instant(
                 PortalResources.sideBar_changeMade,
-                { 
+                {
                     name: descriptor.functionName
                 }));
         }
@@ -87,7 +81,7 @@ export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable
 //export class FunctionEditBaseNode extends TreeNode implements CanBlockNavChange, Disposable, CustomSelection{
 //    public dashboardType = DashboardType.function;
 //    public showExpandIcon = false;
-    
+
 //    constructor(
 //        sideNav : SideNavComponent,
 //        public functionInfo : FunctionInfo,
@@ -162,9 +156,9 @@ export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable
 //        this.sideNav.cacheService.clearCachePrefix(`https://${scmHostName}`);
 
 //    }
-//}
+// }
 
-//export class FunctionMonitorNode extends FunctionEditBaseNode{
+// export class FunctionMonitorNode extends FunctionEditBaseNode{
 //    public title = "Monitor";
 
 //    constructor(
@@ -179,4 +173,4 @@ export class ProxyNode extends TreeNode implements CanBlockNavChange, Disposable
 
 //        this.iconClass = "fa fa-search tree-node-function-icon";
 //    }
-//}
+// }

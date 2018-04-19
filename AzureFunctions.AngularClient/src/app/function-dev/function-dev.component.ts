@@ -1,36 +1,45 @@
-import {Component, OnInit, EventEmitter, QueryList, OnChanges, Input, SimpleChange, ViewChild, ViewChildren, OnDestroy, ElementRef, AfterViewInit } from '@angular/core';
-import {FunctionInfo} from '../shared/models/function-info';
-import {VfsObject} from '../shared/models/vfs-object';
-import {FunctionDesignerComponent} from '../function-designer/function-designer.component';
-import {LogStreamingComponent} from '../log-streaming/log-streaming.component';
-import {FunctionConfig} from '../shared/models/function-config';
-import {Observable, Subject, Subscription} from 'rxjs/Rx';
-import {FunctionSecrets} from '../shared/models/function-secrets';
-import {BroadcastService} from '../shared/services/broadcast.service';
-import {BroadcastEvent} from '../shared/models/broadcast-event';
-import {FunctionApp} from '../shared/function-app'
-import {PortalService} from '../shared/services/portal.service';
-import {BindingType} from '../shared/models/binding';
-import {RunFunctionResult} from '../shared/models/run-function-result';
-import {FileExplorerComponent} from '../file-explorer/file-explorer.component';
-import {GlobalStateService} from '../shared/services/global-state.service';
-import {BusyStateComponent} from '../busy-state/busy-state.component';
+import { EditModeHelper } from './../shared/Utilities/edit-mode.helper';
+import { ConfigService } from './../shared/services/config.service';
+import { Component, QueryList, OnChanges, Input, SimpleChange, ViewChild, ViewChildren, OnDestroy, ElementRef } from '@angular/core';
+import { Observable } from 'rxjs/Observable';
+import { Subject } from 'rxjs/Subject';
+import { Subscription } from 'rxjs/Subscription';
+import 'rxjs/add/observable/zip';
+import 'rxjs/add/observable/of';
+import 'rxjs/add/operator/switchMap';
+import 'rxjs/add/observable/zip';
+import { TranslateService } from '@ngx-translate/core';
+
+import { FunctionInfo } from '../shared/models/function-info';
+import { VfsObject } from '../shared/models/vfs-object';
+// import {FunctionDesignerComponent} from '../function-designer/function-designer.component';
+import { LogStreamingComponent } from '../log-streaming/log-streaming.component';
+import { FunctionSecrets } from '../shared/models/function-secrets';
+import { BroadcastService } from '../shared/services/broadcast.service';
+import { BroadcastEvent } from '../shared/models/broadcast-event';
+import { FunctionApp } from '../shared/function-app'
+import { PortalService } from '../shared/services/portal.service';
+import { BindingType } from '../shared/models/binding';
+import { RunFunctionResult } from '../shared/models/run-function-result';
+import { FileExplorerComponent } from '../file-explorer/file-explorer.component';
+import { GlobalStateService } from '../shared/services/global-state.service';
+import { BusyStateComponent } from '../busy-state/busy-state.component';
 import { ErrorEvent, ErrorType } from '../shared/models/error-event';
-import {TranslateService, TranslatePipe} from 'ng2-translate/ng2-translate';
-import {PortalResources} from '../shared/models/portal-resources';
-import {TutorialEvent, TutorialStep} from '../shared/models/tutorial';
-import {AiService} from '../shared/services/ai.service';
-import {MonacoEditorDirective} from '../shared/directives/monaco-editor.directive';
-import {BindingManager} from '../shared/models/binding-manager';
+import { PortalResources } from '../shared/models/portal-resources';
+import { TutorialEvent, TutorialStep } from '../shared/models/tutorial';
+import { AiService } from '../shared/services/ai.service';
+import { MonacoEditorDirective } from '../shared/directives/monaco-editor.directive';
+import { BindingManager } from '../shared/models/binding-manager';
 import { RunHttpComponent } from '../run-http/run-http.component';
-import { ErrorIds } from "../shared/models/error-ids";
-import {HttpRunModel, Param} from '../shared/models/http-run';
+import { ErrorIds } from '../shared/models/error-ids';
+import { HttpRunModel } from '../shared/models/http-run';
+import { FunctionKeys } from '../shared/models/function-key';
 
 
 @Component({
-  selector: 'function-dev',
-  templateUrl: './function-dev.component.html',
-  styleUrls: ['./function-dev.component.scss']
+    selector: 'function-dev',
+    templateUrl: './function-dev.component.html',
+    styleUrls: ['./function-dev.component.scss']
 })
 export class FunctionDevComponent implements OnChanges, OnDestroy {
     @ViewChild(FileExplorerComponent) fileExplorer: FileExplorerComponent;
@@ -45,7 +54,6 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
     @ViewChild('bottomContainer') bottomContainer: ElementRef;
 
     @Input() selectedFunction: FunctionInfo;
-    public disabled: boolean;
     public functionInfo: FunctionInfo;
     public functionUpdate: Subscription;
     public scriptFile: VfsObject;
@@ -53,53 +61,63 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
     public testContent: string;
     public fileName: string;
     public inIFrame: boolean;
-    public runValid: boolean = false;
+    public runValid = false;
 
     public configContent: string;
     public webHookType: string;
     public authLevel: string;
     public secrets: FunctionSecrets;
     public isHttpFunction: boolean;
+    public isEventGridFunction: boolean;
 
     public runResult: RunFunctionResult;
     public running: Subscription;
-    public showFunctionInvokeUrl: boolean = false;
-    public showFunctionKey: boolean = false;
-    public showFunctionInvokeUrlModal: boolean = false;
-    public showFunctionKeyModal: boolean = false;
+    public showFunctionInvokeUrl = false;
+    public showFunctionKey = false;
+    public showFunctionInvokeUrlModal = false;
+    public showFunctionKeyModal = false;
 
     public rightTab: string = FunctionDevComponent.rightTab;
     public bottomTab: string = FunctionDevComponent.bottomTab;
     public static rightTab: string;
     public static bottomTab: string;
-    public functionInvokeUrl: string = " ";
-    public expandLogs: boolean = false;
-    public functionApp : FunctionApp;
+    public functionInvokeUrl: string;
+    public expandLogs = false;
+    public functionApp: FunctionApp;
+    public functionKeys: FunctionKeys;
+    public hostKeys: FunctionKeys;
+    public masterKey: string;
+    public isStandalone: boolean;
+    public inTab: boolean;
+    public disabled: Observable<boolean>;
+    public eventGridSubscribeUrl: string;
 
     private updatedContent: string;
     private updatedTestContent: string;
     private functionSelectStream: Subject<FunctionInfo>;
-    private selectedFileStream: Subject<VfsObject>;
-    private selectedKeyStream: Subject<string>;
-    private autoSelectAdminKey: boolean;
-    private functionKey: string;
-    private _bindingManager = new BindingManager();
+    public selectedFileStream: Subject<VfsObject>;
+    public functionKey: string;
 
-    private _isEasyAuthEnabled = false;
-
+    private _isClientCertEnabled = false;
+    private _disableTestDataAfterViewInit = false;
     constructor(private _broadcastService: BroadcastService,
-                private _portalService: PortalService,
-                private _globalStateService: GlobalStateService,
-                private _translateService: TranslateService,
-                private _aiService: AiService,
-                private _el: ElementRef) {
+        private _portalService: PortalService,
+        private _globalStateService: GlobalStateService,
+        private _translateService: TranslateService,
+        private _aiService: AiService,
+        configService: ConfigService) {
+
+        this.functionInvokeUrl = this._translateService.instant(PortalResources.functionDev_loading);
+        this.isStandalone = configService.isStandalone();
+        this.inTab = PortalService.inTab();
 
         this.selectedFileStream = new Subject<VfsObject>();
         this.selectedFileStream
             .switchMap(file => {
-                if (this.fileExplorer)
+                if (this.fileExplorer) {
                     this.fileExplorer.setBusyState();
-                return Observable.zip(this.selectedFunction.functionApp.getFileContent(file), Observable.of(file), (c, f) => ({content: c, file: f}));
+                }
+                return Observable.zip(this.selectedFunction.functionApp.getFileContent(file), Observable.of(file), (c, f) => ({ content: c, file: f }));
             })
             .subscribe((res: { content: string, file: VfsObject }) => {
                 this.content = res.content;
@@ -107,34 +125,37 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                 res.file.isDirty = false;
                 this.scriptFile = res.file;
                 this.fileName = res.file.name;
-                if (this.fileExplorer)
+                if (this.fileExplorer) {
                     this.fileExplorer.clearBusyState();
-            }, e => this._globalStateService.clearBusyState());
+                }
+            }, () => this._globalStateService.clearBusyState());
 
         this.functionSelectStream = new Subject<FunctionInfo>();
         this.functionSelectStream
-            .distinctUntilChanged()
             .switchMap(fi => {
                 this.functionApp = fi.functionApp;
+                this.disabled = this.functionApp.getFunctionAppEditMode().map(EditModeHelper.isReadOnly);
                 this._globalStateService.setBusyState();
                 this.checkErrors(fi);
+
+                this.functionApp.getEventGridKey().subscribe(eventGridKey => {
+                    this.eventGridSubscribeUrl = `${this.functionApp.getMainSiteUrl().toLowerCase()}/admin/extensions/EventGridExtensionConfig?functionName=${this.functionInfo.name}&code=${eventGridKey}`;;
+                });
 
                 return Observable.zip(
                     fi.clientOnly || this.functionApp.isMultiKeySupported ? Observable.of({}) : this.functionApp.getSecrets(fi),
                     Observable.of(fi),
-                    this.functionApp.checkIfDisabled(),
-                    this.functionApp.checkIfEasyAuthEnabled(),
-                    (s, f, d, e) => ({ secrets: s, functionInfo: f, disabled: d, easyAuthEnabled : e}))
+                    this.functionApp.getAuthSettings(),
+                    (s, f, e) => ({ secrets: s, functionInfo: f, authSettings: e }));
             })
             .subscribe(res => {
-                this._isEasyAuthEnabled = res.easyAuthEnabled;
-                this.disabled = res.disabled;
-                this.content = "";
+                this._isClientCertEnabled = res.authSettings.clientCertEnabled;
+                this.content = '';
                 this.testContent = res.functionInfo.test_data;
-                this.runValid = true;
                 try {
-                    var httpModel = JSON.parse(res.functionInfo.test_data);
-                    if (httpModel.body !== undefined) {
+                    const httpModel = JSON.parse(res.functionInfo.test_data);
+                    // Check if it's valid model
+                    if (Array.isArray(httpModel.headers)) {
                         this.testContent = httpModel.body;
                     }
                 } catch (e) {
@@ -143,22 +164,22 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
 
                 this._globalStateService.clearBusyState();
                 this.fileName = res.functionInfo.script_href.substring(res.functionInfo.script_href.lastIndexOf('/') + 1);
-                var href = res.functionInfo.script_href;
-                if (this.fileName.toLowerCase().endsWith("dll")) {
+                let href = res.functionInfo.script_href;
+                if (this.fileName.toLowerCase().endsWith('dll')) {
                     this.fileName = res.functionInfo.config_href.substring(res.functionInfo.config_href.lastIndexOf('/') + 1);
                     href = res.functionInfo.config_href;
                 }
 
                 this.scriptFile = this.scriptFile && this.functionInfo && this.functionInfo.href === res.functionInfo.href
                     ? this.scriptFile
-                    : {name: this.fileName, href: res.functionInfo.script_href, mime: 'file'};
+                    : { name: this.fileName, href: href, mime: 'file' };
                 this.selectedFileStream.next(this.scriptFile);
                 this.functionInfo = res.functionInfo;
                 this.setInvokeUrlVisibility();
 
                 this.configContent = JSON.stringify(this.functionInfo.config, undefined, 2);
 
-                var inputBinding = (this.functionInfo.config && this.functionInfo.config.bindings
+                let inputBinding = (this.functionInfo.config && this.functionInfo.config.bindings
                     ? this.functionInfo.config.bindings.find(e => !!e.webHookType)
                     : null);
                 if (inputBinding) {
@@ -177,15 +198,10 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                 } else {
                     delete this.authLevel;
                 }
+                this.updateKeys();
 
-                inputBinding = (this.functionInfo.config && this.functionInfo.config.bindings
-                    ? this.functionInfo.config.bindings.find(e => e.type === 'httpTrigger')
-                    : null);
-                if (inputBinding) {
-                    this.isHttpFunction = true;
-                } else {
-                    this.isHttpFunction = false;
-                }
+                this.isHttpFunction = BindingManager.isHttpFunction(this.functionInfo);
+                this.isEventGridFunction = BindingManager.isEventGridFunction(this.functionInfo);
 
                 setTimeout(() => {
                     this.onResize();
@@ -196,7 +212,7 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                 if (!this.functionApp.isMultiKeySupported) {
                     this.setFunctionInvokeUrl();
                     this.setFunctionKey(this.functionInfo);
-                } else if(this._isEasyAuthEnabled){
+                } else if (this._isClientCertEnabled) {
                     this.setFunctionInvokeUrl();
                 }
 
@@ -206,20 +222,7 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
         this.functionUpdate = _broadcastService.subscribe(BroadcastEvent.FunctionUpdated, (newFunctionInfo: FunctionInfo) => {
             this.functionInfo.config = newFunctionInfo.config;
             this.setInvokeUrlVisibility();
-         });
-
-        this.selectedKeyStream = new Subject<string>();
-        this.selectedKeyStream
-            .subscribe(key => {
-                if (this.authLevel && this.authLevel.toLowerCase() === "admin") {
-                    this.autoSelectAdminKey = true;
-                }
-
-                if (key) {
-                    this.setFunctionInvokeUrl(key);
-                    this.setFunctionKey(this.functionInfo);
-                }
-            });
+        });
     }
 
     expandLogsClicked(isExpand: boolean) {
@@ -227,40 +230,40 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
         this.onResize();
     }
 
-    private onResize(ev?: any) {
+    public onResize() {
 
-        var functionNameHeight = 46;
-        var editorPadding = 25;
+        const functionNameHeight = 46;
+        const editorPadding = 25;
 
-        var functionContainerWidth;
-        var functionContainaerHeight;
+        let functionContainerWidth;
+        let functionContainerHeight;
         if (this.functionContainer) {
             functionContainerWidth = window.innerWidth - this.functionContainer.nativeElement.getBoundingClientRect().left;
-            functionContainaerHeight = window.innerHeight - this.functionContainer.nativeElement.getBoundingClientRect().top;
+            functionContainerHeight = window.innerHeight - this.functionContainer.nativeElement.getBoundingClientRect().top;
         }
-        var rigthContainerWidth = this.rightTab ? Math.floor((functionContainerWidth / 3)) : 50;
-        var bottomContainerHeight = this.bottomTab ? Math.floor((functionContainaerHeight / 3)) : 50;
+        const rightContainerWidth = this.rightTab ? Math.floor((functionContainerWidth / 3)) : 50;
+        let bottomContainerHeight = this.bottomTab ? Math.floor((functionContainerHeight / 3)) : 50;
 
-        var editorContainerWidth = functionContainerWidth - rigthContainerWidth - 50;
-        var editorContainerHeight = functionContainaerHeight - bottomContainerHeight - functionNameHeight - editorPadding;
+        const editorContainerWidth = functionContainerWidth - rightContainerWidth - 50;
+        let editorContainerHeight = functionContainerHeight - bottomContainerHeight - functionNameHeight - editorPadding;
 
         if (this.expandLogs) {
             editorContainerHeight = 0;
-            //editorContainerWidth = 0;
+            // editorContainerWidth = 0;
 
-            bottomContainerHeight = functionContainaerHeight - functionNameHeight;
+            bottomContainerHeight = functionContainerHeight - functionNameHeight;
 
-            this.editorContainer.nativeElement.style.visibility = "hidden";
-            this.bottomContainer.nativeElement.style.marginTop = "0px";
+            this.editorContainer.nativeElement.style.visibility = 'hidden';
+            this.bottomContainer.nativeElement.style.marginTop = '0px';
         } else {
-            this.editorContainer.nativeElement.style.visibility = "visible";
-            this.bottomContainer.nativeElement.style.marginTop = "25px";
+            this.editorContainer.nativeElement.style.visibility = 'visible';
+            this.bottomContainer.nativeElement.style.marginTop = '25px';
         }
 
 
         if (this.editorContainer) {
-            this.editorContainer.nativeElement.style.width = editorContainerWidth + "px";
-            this.editorContainer.nativeElement.style.height = editorContainerHeight + "px";
+            this.editorContainer.nativeElement.style.width = editorContainerWidth + 'px';
+            this.editorContainer.nativeElement.style.height = editorContainerHeight + 'px';
         }
 
         if (this.codeEditor) {
@@ -271,34 +274,34 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
         }
 
         if (this.rightContainer) {
-            this.rightContainer.nativeElement.style.width = rigthContainerWidth + "px";
-            this.rightContainer.nativeElement.style.height = functionContainaerHeight + "px";
+            this.rightContainer.nativeElement.style.width = rightContainerWidth + 'px';
+            this.rightContainer.nativeElement.style.height = functionContainerHeight + 'px';
         }
 
         if (this.bottomContainer) {
-            this.bottomContainer.nativeElement.style.height = bottomContainerHeight + "px";
-            this.bottomContainer.nativeElement.style.width = (editorContainerWidth + editorPadding * 2) + "px";
+            this.bottomContainer.nativeElement.style.height = bottomContainerHeight + 'px';
+            this.bottomContainer.nativeElement.style.width = (editorContainerWidth + editorPadding * 2) + 'px';
         }
 
         if (this.testDataEditor) {
-            var widthDataEditor = rigthContainerWidth - 24;
+            const widthDataEditor = rightContainerWidth - 24;
 
             setTimeout(() => {
                 if (this.testDataEditor) {
                     this.testDataEditor.setLayout(
                         this.rightTab ? widthDataEditor : 0,
-                        this.isHttpFunction ? 230 : functionContainaerHeight / 2
-                        //functionContainaerHeight / 2
-                    )
+                        this.isHttpFunction ? 230 : functionContainerHeight / 2
+                        // functionContainaerHeight / 2
+                    );
                 }
             }, 0);
         }
     }
 
     clickRightTab(tab: string) {
-        if (tab === "logs") {
+        if (tab === 'logs') {
             if (this.bottomTab === tab) {
-                this.bottomTab = "";
+                this.bottomTab = '';
                 this.expandLogs = false;
                 if (this.runLogs) {
                     this.runLogs.compress();
@@ -307,10 +310,10 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                 this.bottomTab = tab;
             }
         } else {
-            this.rightTab = (this.rightTab === tab) ? "" : tab;
+            this.rightTab = (this.rightTab === tab) ? '' : tab;
         }
 
-        // double resize to fix pre heigth
+        // double resize to fix pre height
         this.onResize();
         setTimeout(() => {
             this.onResize();
@@ -339,20 +342,28 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
             });
     }
 
-    private setInvokeUrlVisibility()
-    {
-        var b = this.functionInfo.config.bindings.find((b) => {
-            return b.type === BindingType.httpTrigger.toString();
-        });
-        this.showFunctionInvokeUrl = b ? true : false;
+    ngAfterViewInit() {
+        this.onDisableTestData(this._disableTestDataAfterViewInit);
     }
 
-    ngOnChanges(changes: {[key: string]: SimpleChange}) {
+    private setInvokeUrlVisibility() {
+        if (this.functionInfo.config.bindings) {
+            const b = this.functionInfo.config.bindings.find((b) => {
+                return b.type === BindingType.httpTrigger.toString();
+            });
+            this.showFunctionInvokeUrl = b ? true : false;
+        }
+    }
+
+    ngOnChanges(changes: { [key: string]: SimpleChange }) {
         if (changes['selectedFunction']) {
             delete this.updatedTestContent;
             delete this.runResult;
-            this.functionSelectStream.next(changes['selectedFunction'].currentValue);
+            const selectedFunction = changes['selectedFunction'].currentValue;
+            if (selectedFunction) {
+                this.functionSelectStream.next(changes['selectedFunction'].currentValue);
             }
+        }
     }
 
     private setFunctionKey(functionInfo) {
@@ -360,32 +371,52 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
             this.functionApp.getFunctionKeys(functionInfo)
                 .subscribe(keys => {
                     if (keys && keys.keys && keys.keys.length > 0) {
-                        this.functionKey = keys.keys.find(k => k.name === "default").value || keys.keys[0].value;
+                        this.functionKey = keys.keys.find(k => k.name === 'default').value || keys.keys[0].value;
                     }
                 });
         }
     }
     private setFunctionInvokeUrl(key?: string) {
-        setTimeout(() => {
-            this.functionInvokeUrl = this._translateService.instant(PortalResources.functionDev_loading);
-        });
-
         if (this.isHttpFunction) {
-            var code = '';
-            if (this.webHookType === 'github' || this.authLevel === 'anonymous') {
-                code = '';
-            } else if (key) {
-                code = `?code=${key}`;
+
+            // No webhook https://xxx.azurewebsites.net/api/HttpTriggerCSharp1?code=[keyvalue]
+            // WebhookType = "Generic JSON"  https://xxx.azurewebsites.net/api/HttpTriggerCSharp1?code=[keyvalue]&clientId=[keyname]
+            // WebhookType = "GitHub" or "Slack" https://xxx.azurewebsites.net/api/HttpTriggerCSharp1?clientId=[keyname]
+            let code = '';
+            let clientId = '';
+            let queryParams = '';
+            if (key) {
+                code = key;
             } else if (this.isHttpFunction && this.secrets && this.secrets.key) {
-                code = `?code=${this.secrets.key}`;
-            } else if (this.isHttpFunction && this.functionApp.HostSecrets && !this._isEasyAuthEnabled) {
-                code = `?code=${this.functionApp.HostSecrets}`;
+                code = this.secrets.key;
+            } else if (this.isHttpFunction && this.functionApp.HostSecrets && !this._isClientCertEnabled) {
+                code = this.functionApp.HostSecrets;
             }
 
-           this.functionApp.getHostJson().subscribe((jsonObj) => {
-                var that = this;
-                var result = (jsonObj && jsonObj.http && jsonObj.http.routePrefix !== undefined && jsonObj.http.routePrefix !== null) ? jsonObj.http.routePrefix : 'api';
-                var httpTrigger = this.functionInfo.config.bindings.find((b) => {
+            if (this.webHookType && key) {
+                const allKeys = this.functionKeys.keys.concat(this.hostKeys.keys);
+                const keyWithValue = allKeys.find(k => k.value === key);
+                if (keyWithValue) {
+                    clientId = keyWithValue.name;
+                }
+
+                if (this.webHookType.toLowerCase() !== 'genericjson') {
+                    code = '';
+                }
+            }
+            if (this.authLevel && this.authLevel.toLowerCase() === 'anonymous') {
+                code = null;
+            }
+            if (code) {
+                queryParams = `?code=${code}`;
+            }
+            if (clientId) {
+                queryParams = queryParams ? `${queryParams}&clientId=${clientId}` : `?clientId=${clientId}`;
+            }
+
+            this.functionApp.getHostJson().subscribe((jsonObj) => {
+                let result = (jsonObj && jsonObj.http && jsonObj.http.routePrefix !== undefined && jsonObj.http.routePrefix !== null) ? jsonObj.http.routePrefix : 'api';
+                const httpTrigger = this.functionInfo.config.bindings.find((b) => {
                     return b.type === BindingType.httpTrigger.toString();
                 });
                 if (httpTrigger && httpTrigger.route) {
@@ -395,16 +426,15 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                 }
 
                 // Remove doubled slashes
-                var path = '/' + result;
-                var find = '//';
-                var re = new RegExp(find, 'g');
+                let path = '/' + result;
+                const find = '//';
+                const re = new RegExp(find, 'g');
                 path = path.replace(re, '/');
-                path = path.replace('/?', '?') + code;
+                path = path.replace('/?', '?') + queryParams;
 
-                setTimeout(() => {
-                    this.functionInvokeUrl = this.functionApp.getMainSiteUrl() + path;
-                    this.runValid = true;
-                });
+                this.functionInvokeUrl = this.functionApp.getMainSiteUrl() + path;
+                this.runValid = true;
+
 
             });
         } else {
@@ -412,38 +442,68 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
         }
     }
 
-    saveScript(dontClearBusy?: boolean) {
+    saveScript(dontClearBusy?: boolean): Subscription | null {
         // Only save if the file is dirty
-        if (!this.scriptFile.isDirty) return;
+        if (!this.scriptFile.isDirty) {
+            return null;
+        }
+        let syncTriggers = false;
         if (this.scriptFile.href.toLocaleLowerCase() === this.functionInfo.config_href.toLocaleLowerCase()) {
             try {
-                this._bindingManager.validateConfig(JSON.parse(this.updatedContent), this._translateService);
+                JSON.parse(this.updatedContent);
                 this._broadcastService.broadcast<string>(BroadcastEvent.ClearError, ErrorIds.errorParsingConfig);
+                syncTriggers = true;
             } catch (e) {
                 this._broadcastService.broadcast<ErrorEvent>(BroadcastEvent.Error, {
                     message: this._translateService.instant(PortalResources.errorParsingConfig, { error: e }),
                     errorId: ErrorIds.errorParsingConfig,
-                    errorType: ErrorType.UserError
+                    errorType: ErrorType.UserError,
+                    resourceId: this.functionApp.site.id
                 });
-                return;
+                return null;
             }
         }
+
         this._globalStateService.setBusyState();
 
-        if (this.scriptFile.name.toLowerCase() === "function.json") {
+        if (this.scriptFile.name.toLowerCase() === 'function.json') {
             this.functionInfo.config = JSON.parse(this.updatedContent);
         }
 
-        return this.functionApp.saveFile(this.scriptFile, this.updatedContent, this.functionInfo)
+        let notificationId = null;
+        return this._portalService.startNotification(
+            this._translateService.instant(PortalResources.functionDev_saveFunctionNotifyTitle).format(this.functionInfo.name),
+            this._translateService.instant(PortalResources.functionDev_saveFunctionNotifyTitle).format(this.functionInfo.name))
+            .first()
+            .switchMap(r => {
+                notificationId = r.id;
+                return this.functionApp.saveFile(this.scriptFile, this.updatedContent, this.functionInfo);
+            })
             .subscribe(r => {
-                if (!dontClearBusy)
+                if (!dontClearBusy) {
                     this._globalStateService.clearBusyState();
+                }
                 if (typeof r !== 'string' && r.isDirty) {
                     r.isDirty = false;
                     this._broadcastService.clearDirtyState('function');
                     this._portalService.setDirtyState(false);
                 }
+                if (syncTriggers) {
+                    this.functionApp.fireSyncTrigger();
+                }
+                this._portalService.stopNotification(
+                    notificationId,
+                    true,
+                    this._translateService.instant(PortalResources.functionDev_saveFunctionSuccess).format(this.functionInfo.name));
                 this.content = this.updatedContent;
+            },
+            () => {
+                this._globalStateService.clearBusyState();
+                this._portalService.stopNotification(
+                    notificationId,
+                    false,
+                    this._translateService.instant(PortalResources.functionDev_saveFunctionFailure).format(this.functionInfo.name));
+
             });
     }
 
@@ -463,11 +523,16 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
     }
 
     saveTestData() {
-        var test_data = this.getTestData();
+        const test_data = this.getTestData();
         if (this.functionInfo.test_data !== test_data) {
             this.functionInfo.test_data = test_data;
             this.functionApp.updateFunction(this.functionInfo)
-                .subscribe(r => Object.assign(this.functionInfo, r));
+                .subscribe(r => {
+                    Object.assign(this.functionInfo, r);
+                    if (this.updatedTestContent) {
+                        this.testContent = this.updatedTestContent;
+                    }
+                });
         }
     }
 
@@ -476,14 +541,14 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
             return;
         }
 
-        var resizeNeeded = false;
-        if (this.bottomTab !== "logs") {
-            this.bottomTab = "logs";
+        let resizeNeeded = false;
+        if (this.bottomTab !== 'logs') {
+            this.bottomTab = 'logs';
             resizeNeeded = true;
         }
 
-        if (this.rightTab !== "run") {
-            this.rightTab = "run";
+        if (this.rightTab !== 'run') {
+            this.rightTab = 'run';
             resizeNeeded = true;
         }
 
@@ -493,32 +558,29 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
             });
         }
 
-        var busyComponent = this.BusyStates.toArray().find(e => e.name === 'run-busy');
-
-        if (busyComponent) {
-            busyComponent.setBusyState();
-        }
-
+        this._globalStateService.setBusyState();
         this.saveTestData();
 
         if (this.runHttp) {
             if (!this.runHttp.valid) {
+                this._globalStateService.clearBusyState();
+                this.runValid = false;
                 return;
             }
 
             if (this.httpRunLogs) {
                 this.httpRunLogs.clearLogs();
             }
-            this.runFunctionInternal(busyComponent);
+            this.runFunctionInternal();
 
         } else {
-            this.runFunctionInternal(busyComponent);
+            this.runFunctionInternal();
         }
 
     }
 
     cancelCurrentRun() {
-        this.BusyStates.toArray().find(e => e.name === 'run-busy').clearBusyState();
+        this._globalStateService.clearBusyState();
         if (this.running) {
             this.running.unsubscribe();
             delete this.running;
@@ -537,7 +599,8 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                                 message: this._translateService.instant(PortalResources.functionDev_functionErrorMessage, { name: functionInfo.name, error: e }),
                                 details: this._translateService.instant(PortalResources.functionDev_functionErrorDetails, { error: e }),
                                 errorId: ErrorIds.generalFunctionErrorFromHost + functionInfo.name,
-                                errorType: ErrorType.FunctionError
+                                errorType: ErrorType.FunctionError,
+                                resourceId: this.functionApp.site.id
                             });
                             this._aiService.trackEvent(ErrorIds.generalFunctionErrorFromHost, { error: e, functionName: functionInfo.name, functionConfig: JSON.stringify(functionInfo.config) });
                         });
@@ -552,7 +615,8 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
                                             message: this._translateService.instant(PortalResources.functionDev_hostErrorMessage, { error: e }),
                                             details: this._translateService.instant(PortalResources.functionDev_hostErrorMessage, { error: e }),
                                             errorId: ErrorIds.generalHostErrorFromHost,
-                                            errorType: ErrorType.RuntimeError
+                                            errorType: ErrorType.RuntimeError,
+                                            resourceId: this.functionApp.site.id
                                         });
                                         this._aiService.trackEvent('/errors/host', { error: e, app: this._globalStateService.FunctionContainer.id });
                                     });
@@ -564,11 +628,11 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
     }
 
     get codeEditor(): MonacoEditorDirective {
-        return this.getMonacoDirective("code");
+        return this.getMonacoDirective('code');
     }
 
     get testDataEditor(): MonacoEditorDirective {
-        return this.getMonacoDirective("test_data");
+        return this.getMonacoDirective('test_data');
     }
 
     get runLogs(): LogStreamingComponent {
@@ -592,11 +656,16 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
     }
 
     onRunValid(runValid: any) {
-        this.runValid = runValid;
+        this.runValid = runValid && this.functionInvokeUrl !== this._translateService.instant(PortalResources.functionDev_loading);
     }
 
     setShowFunctionInvokeUrlModal(value: boolean) {
+        const allKeys = this.functionKeys.keys.concat(this.hostKeys.keys);
+        if (allKeys.length > 0) {
+            this.onChangeKey(allKeys[0].value);
+        }
         this.showFunctionInvokeUrlModal = value;
+
     }
 
     setShowFunctionKeyModal(value: boolean) {
@@ -609,15 +678,39 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
     }
 
     onDisableTestData(disableTestData: boolean) {
-        this.testDataEditor.disabled = disableTestData;
+        if (this.testDataEditor) {
+            this.testDataEditor.disabled = disableTestData;
+        } else {
+            this._disableTestDataAfterViewInit = disableTestData;
+        }
+    }
+
+    onChangeKey(key: string) {
+        this.setFunctionInvokeUrl(key);
+        this.setFunctionKey(this.functionInfo);
+    }
+
+    onEventGridSubscribe() {
+        if (this.eventGridSubscribeUrl) {
+            this._portalService.openBlade({
+                detailBlade: 'CreateEventSubscriptionFromSubscriberBlade',
+                extension: 'Microsoft_Azure_EventGrid',
+                detailBladeInputs: {
+                    inputs: {
+                        subscriberEndpointUrl: this.eventGridSubscribeUrl,
+                        label: `functions-${this.functionInfo.name.toLowerCase()}`
+                    }
+                }
+            }, 'function-dev');
+        }
     }
 
     private getTestData(): string {
         if (this.runHttp) {
             this.runHttp.model.body = this.updatedTestContent !== undefined ? this.updatedTestContent : this.runHttp.model.body;
             // remove "code" param fix
-            var clonedModel: HttpRunModel = JSON.parse(JSON.stringify(this.runHttp.model));
-            var codeIndex = clonedModel.queryStringParams.findIndex(p => p.name === 'code');
+            const clonedModel: HttpRunModel = JSON.parse(JSON.stringify(this.runHttp.model));
+            const codeIndex = clonedModel.queryStringParams.findIndex(p => p.name === 'code');
 
             if (codeIndex > -1) {
                 clonedModel.queryStringParams.splice(codeIndex, 1);
@@ -640,26 +733,48 @@ export class FunctionDevComponent implements OnChanges, OnDestroy {
         });
     }
 
-    private runFunctionInternal(busyComponent: BusyStateComponent) {
+    private runFunctionInternal() {
 
         if (this.scriptFile.isDirty) {
             this.saveScript().add(() => setTimeout(() => this.runFunction(), 1000));
         } else {
-            var testData = this.getTestData();
-
-            var result = (this.runHttp) ? this.functionApp.runHttpFunction(this.functionInfo, this.functionInvokeUrl, this.runHttp.model) :
+            const result = (this.runHttp) ? this.functionApp.runHttpFunction(this.functionInfo, this.functionInvokeUrl, this.runHttp.model) :
                 this.functionApp.runFunction(this.functionInfo, this.getTestData());
 
             this.running = result.subscribe(r => {
                 this.runResult = r;
-                if (busyComponent) {
-                    busyComponent.clearBusyState();
-                }
+                this._globalStateService.clearBusyState();
                 delete this.running;
                 if (this.runResult.statusCode >= 400) {
                     this.checkErrors(this.functionInfo);
                 }
-            });
+            }, () => this._globalStateService.clearBusyState());
+        }
+    }
+
+    private updateKeys() {
+        if (this.functionApp && this.functionInfo) {
+            Observable.zip(
+                this.functionApp.getFunctionKeys(this.functionInfo),
+                this.functionApp.getFunctionHostKeys(),
+                (k1, k2) => ({ functionKeys: k1, hostKeys: k2 }))
+                .subscribe((r: any) => {
+                    this.functionKeys = r.functionKeys || [];
+                    this.hostKeys = r.hostKeys || [];
+
+                    if (this.authLevel && this.authLevel.toLowerCase() === 'admin') {
+                        const masterKey = r.hostKeys.keys.find((k) => k.name === '_master');
+                        if (masterKey) {
+                            this.onChangeKey(masterKey.value);
+                        }
+                    } else {
+                        const allKeys = r.functionKeys.keys.concat(this.hostKeys.keys);
+                        if (allKeys.length > 0) {
+                            this.onChangeKey(allKeys[0].value);
+                        }
+                    }
+
+                });
         }
     }
 }
