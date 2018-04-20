@@ -1,6 +1,6 @@
 {
     "name": "azure-functions-ux-server",
-    "version": "0.0.0",
+    "version": "24",
     "scripts": {
         "watch": "nodemon .\\src\\nodemon.json",
         "watchu": "node_modules/.bin/nodemon --config nodemon-unix.json"
@@ -22,7 +22,7 @@
         "morgan": "^1.8.2",
         "pug": "^2.0.0-rc.2",
         "uuid": "^3.1.0",
-        "azure-storage" : "^2.8.1",
+        "azure-storage": "^2.8.1",
         "multer": "^1.3.0",
         "express-rate-limit": "^2.11.0"
     },
@@ -41,7 +41,7 @@
         "@types/pug": "^2.0.4",
         "@types/uuid": "^3.4.0",
         "@types/multer": "^1.3.6",
-        "@types/express-rate-limit" : "^2.9.3",
+        "@types/express-rate-limit": "^2.9.3",
         "concurrently": "^3.5.0",
         "del": "^3.0.0",
         "gulp": "^3.9.1",
